@@ -62,9 +62,10 @@
    </style>
 </head>
 <body id="double-pendulum">
-<canvas id="canvas" width="400" height="400"></canvas>
-<canvas id="canvas-line" width="400" height="400"></canvas>
+   <canvas id="canvas" width="400" height="400"></canvas>
+   <canvas id="canvas-line" width="400" height="400"></canvas>
 
+   <button>Reset Canvas</button>
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
 <script>
@@ -75,61 +76,84 @@
    const ctxLine = canvasLine.getContext('2d');
    const gui = new dat.GUI({
       closeOnTop: true,
-      closed: true,
+      // closed: true,
       width: 320,
    });
    
-   const config = {
-      gravity: 0.1,
-      friction: 0.2,
+   var pendulum = {
+      gravity: 9.82,
+      friction: 0.25,
+      playing: true,
+      maxSize: Math.min(innerWidth, innerHeight) * 0.9,
+      rodColor: '#275e93',
+      discColor: '#1e82e3'
    }
-
-   var lineColor = hexToRGB('#E27A3F', 0.3);
-   var strokeColor = '#34495E';
-   var bobColor = '#4c83b9';
+  
    var line = {
       x: 0,
-      y: 0
+      y: 0,
+      alphaDelay: 0,
+      color: '#ff6914',
+      fadedColor: hexToRGB('#353f57', 0.1),
    }
-   var availableSize = Math.min(innerWidth, innerHeight) * 0.9;
 
    var b1 = {
-      mass: 20,
+      mass: 35,
       x: 0,
       y: 0,
       angle: 0,
-      dist: availableSize / 4,
+      dist: pendulum.maxSize / 4,
       vel: 0,
       acc: 0
    }
 
    var b2 = {
-      mass: 20,
+      mass: 40,
       x: 0,
       y: 0,
       angle: Math.PI * 0.25,
-      dist: availableSize / 4,
+      dist: pendulum.maxSize / 4,
       vel: 0,
       acc: 0
    }
 
-   let general = gui.addFolder('Config');
+
+   // GUI
+   let general = gui.addFolder('Configuration');
    general.open();
-   general.add(config, 'gravity', -0.2, 0.2, 0.002);
-   general.add(config, 'friction', 0, 20, 0.1);
+   general.add(pendulum, 'gravity', -20, 20, 0.002).name('Gravity');
+   general.add(pendulum, 'friction', 0, 2, 0.01).name('Friction');
    let b1Folder = gui.addFolder('Bob 1');
    b1Folder.open();
-   b1Folder.add(b1, 'mass', 1, 200, 1);
-   b1Folder.add(b1, 'dist', 20, availableSize / 4);
+   b1Folder.add(b1, 'mass', 1, 200, 1).name('Mass');
+   b1Folder.add(b1, 'dist', 20, pendulum.maxSize / 4).name('Distance');
    let b2Folder = gui.addFolder('Bob 2');
    b2Folder.open();
-   b2Folder.add(b2, 'mass', 1, 200, 1);
-   b2Folder.add(b2, 'dist', 20, availableSize / 4);
+   b2Folder.add(b2, 'mass', 1, 200, 1).name('Mass');
+   b2Folder.add(b2, 'dist', 20, pendulum.maxSize / 4).name('Distance');
+
+   let buttons = {
+      resetLines: function(){
+         ctxLine.clearRect(0, 0, innerWidth, innerHeight);
+      },
+      toggle: function(){
+         if (pendulum.playing == true) {
+            pendulum.playing = false
+         } else {
+            pendulum.playing = true
+         }         
+      },
+   };
+   gui.add(buttons, 'resetLines').name('Erase lines');
+   gui.add(buttons, 'toggle').name('Pause/Play');
+
 
    // Functions
    function calculateBobs() {
-      let num1 = config.gravity * (2 * b1.mass + b2.mass) * Math.sin(b1.angle);
-      let num2 = -b2.mass * -config.gravity * Math.sin(b1.angle - 2 * b2.angle);
+      const g = -pendulum.gravity / 100;
+
+      let num1 = -g * (2 * b1.mass + b2.mass) * Math.sin(b1.angle);
+      let num2 = -b2.mass * g * Math.sin(b1.angle - 2 * b2.angle);
       let num3 = -2 * Math.sin(b1.angle - b2.angle) * b2.mass;
       let num4 = b2.vel * b2.vel * b2.dist + b1.vel * b1.vel * b1.dist * Math.cos(b1.angle - b2.angle);
       let den = b1.dist * (2 * b1.mass + b2.mass - b2.mass * Math.cos(2 * b1.angle - 2 * b2.angle));
@@ -137,7 +161,7 @@
 
       num1 = 2 * Math.sin(b1.angle - b2.angle);
       num2 = b1.vel * b1.vel * b1.dist * (b1.mass + b2.mass);
-      num3 = -config.gravity * (b1.mass + b2.mass) * Math.cos(b1.angle);
+      num3 = g * (b1.mass + b2.mass) * Math.cos(b1.angle);
       num4 = b2.vel * b2.vel * b2.dist * b2.mass * Math.cos(b1.angle - b2.angle);
       den = b2.dist * (2 * b1.mass + b2.mass - b2.mass * Math.cos(2 * b1.angle - 2 * b2.angle));
       b2.acc = (num1 * (num2 + num3 + num4)) / den;
@@ -152,56 +176,71 @@
       b1.vel += b1.acc;
       b2.vel += b2.acc;
 
-      b1.vel /= (config.friction / 1000) + 1;
-      b2.vel /= (config.friction / 1000) + 1;
+      b1.vel /= (pendulum.friction / 1000) + 1;
+      b2.vel /= (pendulum.friction / 1000) + 1;
    }
 
    function drawPendulum(x, y) {
+      // Draw Center
+      ctx.beginPath();
+      ctx.arc(innerWidth / 2, innerHeight / 2, 3, 0, 2*Math.PI);
+      ctx.fillStyle = pendulum.rodColor;
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw Rods
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(b1.x + x, b1.y + y);
       ctx.lineTo(b2.x + x, b2.y + y);
       ctx.lineWidth = 3;
-      ctx.strokeStyle = strokeColor;
+      ctx.strokeStyle = pendulum.rodColor;
       ctx.stroke();
 
+      // Fade the line's color away
+      line.alphaDelay ++
+      if (line.alphaDelay > 20) {
+         line.alphaDelay = 0;
+         ctxLine.globalCompositeOperation = 'source-atop';
+         ctxLine.beginPath();
+         ctxLine.fillStyle = line.fadedColor;
+         ctxLine.fillRect(0, 0, innerWidth, innerHeight);
+      }
+      
+      // Draw the line
+      ctxLine.globalCompositeOperation = 'source-over';
       ctxLine.beginPath();
       ctxLine.moveTo(line.x, line.y);
       ctxLine.lineTo(b2.x + x, b2.y + y);
-      ctxLine.lineWidth = 1;
-      ctxLine.strokeStyle = lineColor;
+      ctxLine.lineWidth = 0.75;
+      ctxLine.strokeStyle = line.color;
       ctxLine.stroke();
-
+      
+      // Draw first disc
       ctx.beginPath();
       ctx.arc(b1.x + x, b1.y + y, 6, 0, 2*Math.PI);
-      ctx.fillStyle = bobColor;
+      ctx.fillStyle = pendulum.discColor;
       ctx.fill();
 
+      // Draw second disc
       ctx.beginPath();
       ctx.arc(b2.x + x, b2.y + y, 6, 0, 2*Math.PI);
       ctx.fill();
 
-      line = {
-         x: b2.x + x,
-         y: b2.y + y
-      }
+      line.x = b2.x + x;
+      line.y = b2.y + y;
    }
 
    function animate() {
       requestAnimationFrame(animate);
 
-      // Clears the canvas
-      ctx.clearRect(0,0, innerWidth, innerHeight);
+      if (pendulum.playing) {
+         // Clear the canvas
+         ctx.clearRect(0,0, innerWidth, innerHeight);
 
-      // Draw Center
-      ctx.beginPath();
-      ctx.arc(innerWidth / 2, innerHeight / 2, 3, 0, 2*Math.PI);
-      ctx.fillStyle = strokeColor;
-      ctx.fill();
-      ctx.closePath();
-
-      calculateBobs();
-      drawPendulum(innerWidth / 2, innerHeight / 2);
+         calculateBobs();
+         drawPendulum(innerWidth / 2, innerHeight / 2);
+      }
    }
 
    function resizeWindow() {
@@ -217,11 +256,13 @@
    animate();
    resizeWindow();
 
+
    // Event Listeners
    window.addEventListener('resize', function(){
       resizeWindow();
    });
 
+   
    // Utilities
    function hexToRGB(hex, alpha) {
       const r = parseInt(hex.slice(1, 3), 16),
