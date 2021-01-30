@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Gravity 1</title>
+   <style>
+      *,
+      *:before,
+      *:after {
+         box-sizing: border-box;
+      }
+
+      html,
+      body,
+      canvas {
+         width: 100%;
+         height: 100%;
+      }
+
+      html {
+         font-size: 15px;
+         font-family: 'Gill Sans', 'Gill Sans MT', sans-serif;
+      }
+
+      body {
+         margin: 0;
+         padding: 0;
+         overflow: hidden;
+      }
+
+      canvas {
+         background-color: #97CECC;
+      }
+   </style>
+</head>
+<body>
+<canvas id="canvas" width="400" height="400"></canvas>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script>
+   var canvas = document.getElementById('canvas');
+   var ctx = canvas.getContext('2d');
+   var gravity = 0.982 / 2;
+   var circles = [];
+   var colors = [
+      '#C4421A',
+      '#F98F45',
+      '#12908E',
+      '#16594E'
+   ];
+
+   class Circle {
+      constructor (x, y, radius, mass, color) {
+         this.x = x;
+         this.y = y;
+         this.radius = radius;
+         this.mass = mass;
+         this.color = color;
+         this.dx = 0;
+         this.dy = 1;
+         this.wallFriction = 0.80;
+         this.airFriction = 0.999;
+      }
+
+      draw() {
+         ctx.beginPath();
+         ctx.arc(this.x, this.y, this.radius, 0, 2*Math.PI);
+         ctx.fillStyle = this.color;
+         ctx.fill();
+         ctx.closePath();
+      }
+
+      update() {
+         if (this.y + this.radius + this.dy > innerHeight) {
+            this.dy = -this.dy * this.wallFriction;
+            this.dx *= this.wallFriction;
+         } else {
+            this.dy += gravity;
+         }
+
+         if (this.x + this.radius + this.dx >= innerWidth ||
+             this.x - this.radius + this.dx <= 0) {
+            this.dx = -this.dx * this.wallFriction;
+            this.dy *= this.wallFriction;
+         } else {
+            this.dx = this.dx;
+         }
+         
+         this.dy *= this.airFriction;
+         this.dx *= this.airFriction;
+
+         this.x += this.dx;
+         this.y += this.dy;
+         this.draw();
+      }
+
+      jump(force) {
+         const vForce = - force * 100;
+         const hForce = randomIntFromRange(-force, force) * 50;
+         this.dx = hForce / this.mass;
+         this.dy = vForce / this.mass;
+      }
+   }
+
+   for (let i = 0; i < 50; i++) {
+      let radius = randomIntFromRange(15, 50, false);
+      const mass = 20 + radius/3;
+      radius = Math.floor(radius);
+      const x = randomIntFromRange(radius, innerWidth - radius);
+      const y = innerHeight - radius;
+      const color = randomValueFromArray(colors);
+      circles.push(new Circle(x, y, radius,  mass, color));
+   }
+
+   function animate() {
+      requestAnimationFrame(animate);
+
+      // ctx.clearRect(0, 0, innerWidth, innerHeight);
+      const bg = 'rgba(151, 206, 204, 0.5)';
+      ctx.beginPath()
+      ctx.rect(0,0, innerWidth, innerHeight);
+      ctx.fillStyle = bg;
+      ctx.fill();
+
+      for (let i = 0; i < circles.length; i++) {
+         const circle = circles[i];
+         circle.update();
+      }
+   }
+
+   function resizeWindow() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+   }
+
+   function randomIntFromRange(min, max, round = true) {
+      if (round) {
+         return Math.floor(min + Math.random() * (max - min + 1));
+      } else {
+         return min + Math.random() * (max - min + 1);
+      }
+   }
+
+   function randomValueFromArray(array) {
+      return array[Math.floor(Math.random() * array.length)];
+   }
+
+   animate();
+   resizeWindow();
+   
+   window.addEventListener('resize', function(){
+      resizeWindow();
+
+      for (let i = 0; i < circles.length; i++) {
+         const circle = circles[i];
+         
+         if (circle.y + circle.radius > innerHeight) {
+            circle.y = innerHeight - circle.radius;
+         }
+      }
+   });
+
+   window.addEventListener('click', function(){
+      for (let i = 0; i < circles.length; i++) {
+         const circle = circles[i];
+         
+         circle.jump(8);
+      }
+   });
+</script>
+</body>
+</html>
